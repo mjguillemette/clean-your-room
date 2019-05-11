@@ -1,99 +1,82 @@
-export function calculateProductPrice(product, employee, selectedOptions) {
+let coverage = 0
+let cost = 0
+
+export function  calculateProductPrice(product, employee, selectedOptions){
   let price = 0
-  const fmtc = selectedOptions.familyMembersToCover
+  const familyToCover = selectedOptions.familyMembersToCover
 
-  switch (product.type) {
-    case 'medical':
-      if (fmtc.includes('ee')) {
-        const eeCost = product.costs.find(cost => {
-          return cost.role === 'ee'
-        })
+  if (product.type != 'medical' && product.type != 'volLife' && product.type != 'ltd') {
+    throw new Error(`Unknown product type: ${product.type}`)
+  } 
 
-        price += eeCost.price
-      }
+  price += medicalPricing(product, familyToCover)
+  price += voluntaryPricing(product, familyToCover, selectedOptions)
+  price += disabilityPricing(product, familyToCover, employee)
 
-      if (fmtc.includes('sp')) {
-        const spCost = product.costs.find(cost => {
-          return cost.role === 'sp'
-        })
+  return parseInt(price * 100) / 100
+}
 
-        price += spCost.price
-      }
+function medicalPricing(product, familyToCover){
+  let medicalPrice = 0
 
-      if (fmtc.includes('ch')) {
-        const chCost = product.costs.find(cost => {
-          return cost.role === 'ch'
-        })
+  if (product.type != 'medical') { return 0 }
+  for(var x in familyToCover){
+    let familyMember = familyToCover[x]
+    
+    medicalPrice += product.costs.find(cost => {
+      return cost.role === familyMember
+    }).price
+  }
+  return medicalPrice
+}
 
-        price += chCost.price
-      }
+function voluntaryPricing(product, familyToCover, selectedOptions){
+  if (product.type != 'volLife') { return 0 }
+  let voluntaryPricing = 0
+  for(var x in familyToCover){
+    let familyMember = familyToCover[x]
+    console.log(familyMember)
 
-      if (fmtc.includes('chs')) {
-        const chsCost = product.costs.find(cost => {
-          return cost.role === 'chs'
-        })
+    coverage = selectedOptions.coverageLevel.find(coverage => {
+      return coverage.role === familyMember
+    }).coverage
 
-        price += chsCost.price
-      }
+    cost = product.costs.find(cost => {
+      return cost.role === familyMember
+    })
 
-      return parseInt(price * 100) / 100
-    case 'volLife':
-      if (fmtc.includes('ee')) {
-        const eeCoverage = selectedOptions.coverageLevel.find(coverage => {
-          return coverage.role === 'ee'
-        })
+    voluntaryPricing += (coverage / cost.costDivisor) * cost.price
+  }
 
-        const eeCost = product.costs.find(cost => {
-          return cost.role === 'ee'
-        })
+  return employerContribution(product, voluntaryPricing)
+}
 
-        price += (eeCoverage.coverage / eeCost.costDivisor) * eeCost.price
-      }
+function disabilityPricing(product, familyToCover, employee){
+  if (product.type != 'ltd') { return 0 }
+  let disabilityPrice = 0
+  for(var x in familyToCover){
+    let familyMember = familyToCover[x]
+    coverage = product.coverage.find(coverage => {
+      return coverage.role === familyMember
+    })
+    cost = product.costs.find(cost => {
+      return cost.role === familyMember
+    })
 
-      if (fmtc.includes('sp')) {
-        const spCoverage = selectedOptions.coverageLevel.find(coverage => {
-          return coverage.role === 'sp'
-        })
+    const salaryPercentage = coverage.percentage / 100
+    disabilityPrice += ((employee.salary * salaryPercentage) / cost.costDivisor) * cost.price
+  }
+  
+  disabilityPrice = (disabilityPrice * 100) / 100
+  return employerContribution(product, disabilityPrice)
+}
 
-        const spCost = product.costs.find(cost => {
-          return cost.role === 'sp'
-        })
 
-        price += (spCoverage.coverage / spCost.costDivisor) * spCost.price
-      }
-
-      if (product.employerContribution.mode === 'dollar') {
-        price = price - product.employerContribution.contribution
-      } else {
-        const dollarsOff = price * (product.employerContribution.contribution / 100)
-        price = price - dollarsOff
-      }
-
-      return parseInt(price * 100) / 100
-    case 'ltd':
-      if (fmtc.includes('ee')) {
-        const eeCoverage = product.coverage.find(coverage => {
-          return coverage.role === 'ee'
-        })
-
-        const eeCost = product.costs.find(cost => {
-          return cost.role === 'ee'
-        })
-
-        const salaryPercentage = eeCoverage.percentage / 100
-
-        price += ((employee.salary * salaryPercentage) / eeCost.costDivisor) * eeCost.price
-      }
-
-      if (product.employerContribution.mode === 'dollar') {
-        price = price - product.employerContribution.contribution
-      } else {
-        const dollarsOff = price * product.employerContribution.contribution
-        price = price - dollarsOff
-      }
-
-      return parseInt(price * 100) / 100
-    default:
-      throw new Error(`Unknown product type: ${product.type}`)
+function employerContribution(product, pricing){
+  if(product.employerContribution.mode === 'dollar'){
+    return pricing - product.employerContribution.contribution
+  } else { 
+    const dollarsOff = pricing * (product.employerContribution.contribution /100)
+    return pricing - dollarsOff
   }
 }
